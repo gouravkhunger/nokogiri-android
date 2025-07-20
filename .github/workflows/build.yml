@@ -39,7 +39,7 @@ jobs:
       - name: Build Nokogiri
         run: |
           ./setup.sh ${{ matrix.target_arch }}
-          bundle exec rake compile:nokogiri
+          bundle exec rake compile:nokogiri -- --with-opt-dir=$(pwd)/tmp
 
       - uses: actions/upload-artifact@v4
         with:
