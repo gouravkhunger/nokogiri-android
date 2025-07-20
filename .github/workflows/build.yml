@@ -3,7 +3,6 @@ name: Build bootstraps
 on:
   workflow_dispatch:
 
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -37,7 +36,7 @@ jobs:
       - name: Setup build
         run: |
           mv nokogiri/* .
-          ./setup.sh {{ matrix.target_arch }}
+          ./setup.sh ${{ matrix.target_arch }}
           bundle exec rake compile:nokogiri
 
       - uses: actions/upload-artifact@v4
