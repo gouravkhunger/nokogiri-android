@@ -22,20 +22,22 @@ jobs:
       - name: Add NDK to PATH
         run: echo "NDK=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
 
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup files
+        run: mv nokogiri/* .
+
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.4.1"
           bundler-cache: true
 
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-
-      - name: Setup build
+      - name: Build Nokogiri
         run: |
-          mv nokogiri/* .
           ./setup.sh ${{ matrix.target_arch }}
           bundle exec rake compile:nokogiri
 
