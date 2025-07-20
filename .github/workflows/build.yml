@@ -28,7 +28,7 @@ jobs:
           submodules: true
 
       - name: Setup files
-        run: mv nokogiri/* .
+        run: rsync -a --exclude='.git' nokogiri/ .
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
