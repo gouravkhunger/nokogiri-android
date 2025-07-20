@@ -1,0 +1,46 @@
+name: Build bootstraps
+
+on:
+  workflow_dispatch:
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target_arch: [aarch64] # add arm, i686, x86_64
+
+    steps:
+      - name: Set up NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27c
+          local-cache: true
+
+      - name: Add NDK to PATH
+        run: echo "NDK=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4.1"
+          bundler-cache: true
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup build
+        run: |
+          mv nokogiri/* .
+          ./setup.sh {{ matrix.target_arch }}
+          bundle exec rake compile:nokogiri
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: logs
+          path: tmp
