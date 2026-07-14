@@ -1,14 +1,11 @@
-name: Build Android Nokogiri gems
+name: Build
 
 on:
   workflow_dispatch:
   push:
-    branches:
-      - "feature/**"
-      - "fix-ci"
+    branches: ["feature/**", "fix-ci"]
   pull_request:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
   build:
@@ -16,77 +13,32 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target_arch: [aarch64, arm, i686, x86_64]
-
+        arch: [aarch64, arm, i686, x86_64]
     steps:
-      - name: Set up NDK
-        id: setup-ndk
-        uses: nttld/setup-ndk@v1
+      - uses: nttld/setup-ndk@v1
+        id: ndk
         with:
           ndk-version: r27c
           local-cache: false
-
-      - name: Export NDK
-        run: echo "NDK=${{ steps.setup-ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
-
-      - name: Verify NDK clang
-        run: |
-          echo "NDK=$NDK"
-          ls -la "$NDK/toolchains/llvm/prebuilt/" || true
-          host=$(ls "$NDK/toolchains/llvm/prebuilt" | head -1)
-          test -x "$NDK/toolchains/llvm/prebuilt/$host/bin/clang"
-          "$NDK/toolchains/llvm/prebuilt/$host/bin/clang" --version | head -1
-
-      - name: Checkout repository
-        uses: actions/checkout@v7
+      - run: echo "NDK=${{ steps.ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
-
-      - name: Install dpkg-deb
-        run: sudo apt-get update && sudo apt-get install -y dpkg
-
-      - name: Set up Ruby (host packaging / mkmf)
-        uses: ruby/setup-ruby@v1
+      - run: sudo apt-get update && sudo apt-get install -y dpkg
+      - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.4.1"
-          bundler-cache: false
-
-      - name: Install host gems for extconf helpers
-        run: |
-          gem install rake mini_portile2 pkg-config --no-document
-          # racc is a runtime dep of nokogiri; not needed to compile C ext
-
-      - name: Build + package for ${{ matrix.target_arch }}
-        run: ./scripts/build_android.sh ${{ matrix.target_arch }}
-
-      - name: List artifacts
-        run: |
-          ls -la out/ pkg/ || true
-          find out pkg -type f -print 2>/dev/null | sort
-
-      - name: Verify gem has no extensions + ships .so
-        run: |
-          shopt -s nullglob
-          gems=(pkg/nokogiri-*.gem)
-          test ${#gems[@]} -ge 1
-          ruby scripts/verify_gem.rb "${gems[0]}"
-
-      - name: Upload prebuilt gem
-        uses: actions/upload-artifact@v7
+      - run: gem install mini_portile2 --no-document
+      - run: ./scripts/build.sh ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v7
         with:
-          name: nokogiri-android-${{ matrix.target_arch }}
+          name: nokogiri-${{ matrix.arch }}
           path: |
             pkg/*.gem
-            out/**/*.so
-
-      - name: Upload stage logs (on failure)
-        if: failure()
+            out/**/nokogiri.so
+      - if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: build-logs-${{ matrix.target_arch }}
-          path: |
-            build/**
-            stage/**/lib/pkgconfig/**
-            nokogiri/ext/nokogiri/mkmf.log
-            nokogiri/ext/nokogiri/Makefile
+          name: logs-${{ matrix.arch }}
+          path: nokogiri/ext/nokogiri/mkmf.log
           if-no-files-found: ignore

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+real="${NOKOGIRI_ANDROID_REAL_CXX:?}"
+if [[ -n "${LD_LIBRARY_PATH:-}" ]]; then
+  out=
+  IFS=:; for p in $LD_LIBRARY_PATH; do
+    [[ -z "$p" || "$p" == "." || "$p" == *"/stage/"* ]] && continue
+    out="${out:+$out:}$p"
+  done
+  export LD_LIBRARY_PATH="$out"
+fi
+exec "$real" "$@"

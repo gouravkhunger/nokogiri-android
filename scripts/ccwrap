@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Drop stage libs from LD_LIBRARY_PATH so host NDK clang is not poisoned (x86_64).
+real="${NOKOGIRI_ANDROID_REAL_CC:?}"
+[[ "$(basename "$0")" == *++* ]] && real="${NOKOGIRI_ANDROID_REAL_CXX:-$real}"
+if [[ -n "${LD_LIBRARY_PATH:-}" ]]; then
+  out=
+  IFS=:; for p in $LD_LIBRARY_PATH; do
+    [[ -z "$p" || "$p" == "." || "$p" == *"/stage/"* ]] && continue
+    out="${out:+$out:}$p"
+  done
+  export LD_LIBRARY_PATH="$out"
+fi
+exec "$real" "$@"
