@@ -1,0 +1,25 @@
+.bundle/
+*.bundle
+*.gem
+*.o
+*.so
+/build/
+/ext/nokogiri/Makefile
+/nokogiri/ext/nokogiri/*.o
+/nokogiri/ext/nokogiri/*.so
+/nokogiri/ext/nokogiri/Makefile
+/nokogiri/tmp/
+/out/
+/pkg/
+/stage/
+/tmp/
+# submodule build leftovers (if any tracked paths)
+mkmf.log
+nokogiri/ext/nokogiri/*.o
+nokogiri/ext/nokogiri/*.so
+nokogiri/ext/nokogiri/Makefile
+nokogiri/ext/nokogiri/mkmf.log
+nokogiri/ext/nokogiri/ports/
+nokogiri/ext/nokogiri/tmp/
+scripts/.android_rbconfig_preload.rb
+vendor/bundle/
