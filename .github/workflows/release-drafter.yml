@@ -24,9 +24,17 @@ jobs:
         uses: nttld/setup-ndk@v1
         with:
           ndk-version: r27c
-          local-cache: true
+          local-cache: false
       - name: Export NDK
         run: echo "NDK=${{ steps.setup-ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
+
+      - name: Verify NDK clang
+        run: |
+          echo "NDK=$NDK"
+          ls -la "$NDK/toolchains/llvm/prebuilt/" || true
+          host=$(ls "$NDK/toolchains/llvm/prebuilt" | head -1)
+          test -x "$NDK/toolchains/llvm/prebuilt/$host/bin/clang"
+          "$NDK/toolchains/llvm/prebuilt/$host/bin/clang" --version | head -1
       - uses: actions/checkout@v4
         with:
           submodules: recursive
