@@ -113,6 +113,8 @@ require "shellwords"
 
   %w[CFLAGS CPPFLAGS LDFLAGS DLDFLAGS].each do |flag_key|
     raw = RbConfig::CONFIG[flag_key].to_s
+    # Drop unexpanded Make vars like $(cflags)/$(DEFS) — shell would treat $(cflags) as command subst
+    raw = raw.gsub(/\$\([^)]*\)/, " ")
     cleaned = raw.split.reject do |f|
       f.include?("/data/data/") ||
         f.include?("android-support") ||
@@ -121,7 +123,8 @@ require "shellwords"
         f.start_with?("-Wl,-rpath,") ||
         f == "-Wl,--enable-new-dtags" ||
         f == "-rdynamic" ||
-        f == "-Wl,-export-dynamic"
+        f == "-Wl,-export-dynamic" ||
+        f.start_with?("$(")
     end
     RbConfig::CONFIG[flag_key] = RbConfig::MAKEFILE_CONFIG[flag_key] = cleaned.join(" ")
   end

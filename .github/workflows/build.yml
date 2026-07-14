@@ -79,3 +79,6 @@ jobs:
           path: |
             build/**
             stage/**/lib/pkgconfig/**
+            nokogiri/ext/nokogiri/mkmf.log
+            nokogiri/ext/nokogiri/Makefile
+          if-no-files-found: ignore
