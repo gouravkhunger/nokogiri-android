@@ -43,7 +43,12 @@ host_triple = target.sub(/androideabi\z/, "androideabi") # armv7a-linux-androide
 preload = File.join(root, "scripts", ".preload.rb")
 File.write(preload, <<~RB)
   require "rbconfig"
-  load #{rbc.inspect}
+  # Target Android rbconfig asserts RUBY_VERSION; host may differ (CI uses matching 3.3.4).
+  _rbc = File.read(#{rbc.inspect})
+  _rbc = _rbc.lines.reject { |l|
+    l.include?("RUBY_VERSION.start_with?") || l.include?("doesn't match executable version")
+  }.join
+  eval(_rbc, binding, #{rbc.inspect})
   stage = #{stage.inspect}
   host_triple = #{host_triple.inspect}
   re = %r{/data/data/[^/]+/files/usr}

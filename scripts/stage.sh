@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stage Android MRI only (headers + libruby). Deps are built/static-linked by compile.
+# Stage Android MRI 3.3.4 (headers + libruby) from JekyllEx bootstrap.
 # Usage: source scripts/stage.sh <aarch64|arm|i686|x86_64>
 set -euo pipefail
 
@@ -10,13 +10,17 @@ case "$ARCH" in aarch64|arm|i686|x86_64) ;; *) echo "bad arch: $ARCH" >&2; exit 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STAGE="${NOKOGIRI_ANDROID_STAGE:-$ROOT/stage/$ARCH}"
 API="${ANDROID_API:-24}"
-POOL="${TERMUX_POOL:-https://packages-cf.termux.dev/apt/termux-main/pool/main}"
+# JekyllEx bootstrap (Ruby 3.3.4). Override JEKYLLEX_RUBY_URL_BASE / RUBY_ZIP.
+BOOT_VER="${JEKYLLEX_BOOTSTRAP_VERSION:-v0.1.4}"
+BOOT_BASE="${JEKYLLEX_RUBY_URL_BASE:-https://github.com/jekyllex/ruby-android/releases/download/${BOOT_VER}}"
 
 : "${NDK:=${ANDROID_NDK_HOME:-${ANDROID_NDK_ROOT:-}}}"
 if [[ -z "${NDK}" || ! -d "${NDK}" ]]; then
+  shopt -s nullglob
   for d in "$HOME/Library/Android/sdk/ndk/"* "$HOME/Android/Sdk/ndk/"*; do
     [[ -d "$d/toolchains/llvm/prebuilt" ]] && NDK=$d && break
   done
+  shopt -u nullglob
 fi
 [[ -n "${NDK:-}" && -d "$NDK" ]] || { echo "set NDK" >&2; exit 1; }
 
@@ -27,10 +31,10 @@ done
 [[ -n "$HOST" ]] || { echo "no NDK prebuilt" >&2; exit 1; }
 
 case "$ARCH" in
-  aarch64) TARGET=aarch64-linux-android;    PLAT=aarch64-linux-android ;;
-  arm)     TARGET=armv7a-linux-androideabi; PLAT=arm-linux-androideabi ;;
-  i686)    TARGET=i686-linux-android;       PLAT=i686-linux-android ;;
-  x86_64)  TARGET=x86_64-linux-android;     PLAT=x86_64-linux-android ;;
+  aarch64) TARGET=aarch64-linux-android;    PLAT=aarch64-linux-android; ZIP_ARCH=aarch64 ;;
+  arm)     TARGET=armv7a-linux-androideabi; PLAT=arm-linux-androideabi; ZIP_ARCH=arm ;;
+  i686)    TARGET=i686-linux-android;       PLAT=i686-linux-android;    ZIP_ARCH=i686 ;;
+  x86_64)  TARGET=x86_64-linux-android;     PLAT=x86_64-linux-android;  ZIP_ARCH=x86_64 ;;
 esac
 
 TOOLCHAIN="$NDK/toolchains/llvm/prebuilt/$HOST"
@@ -49,26 +53,41 @@ mkdir -p "$STAGE"
 source "$ROOT/scripts/toolchain.sh"
 
 fetch_ruby() {
-  local deb="${RUBY_DEB:-ruby_3.4.1-2_${ARCH}.deb}"
-  local url="$POOL/r/ruby/$deb"
-  [[ -f "$STAGE/$deb" ]] || curl -fsSL -o "$STAGE/$deb" "$url"
+  local zip="${RUBY_ZIP:-ruby-${ZIP_ARCH}.zip}"
+  local url="${RUBY_URL:-$BOOT_BASE/$zip}"
+  local zpath="$STAGE/$zip"
+  [[ -f "$zpath" ]] || curl -fsSL -L -o "$zpath" "$url"
   local x="$STAGE/.x"
   rm -rf "$x" && mkdir -p "$x"
-  dpkg-deb -x "$STAGE/$deb" "$x"
-  local usr
-  usr=$(find "$x" -type d -path '*/files/usr' | head -1)
-  [[ -n "$usr" ]] || { echo "no usr in ruby deb" >&2; return 1; }
-  for s in include lib; do
-    [[ -d "$usr/$s" ]] && mkdir -p "$STAGE/$s" && cp -a "$usr/$s"/. "$STAGE/$s"/
+  unzip -qo "$zpath" -d "$x"
+  # MRI only — do not stage bootstrap shared libs (would beat static iconv/xml)
+  mkdir -p "$STAGE/include" "$STAGE/lib"
+  [[ -d "$x/include" ]] && cp -a "$x"/include/ruby-* "$STAGE/include/" 2>/dev/null || true
+  # libruby + rbconfig tree
+  for f in "$x"/lib/libruby.so*; do
+    [[ -e "$f" ]] && cp -a "$f" "$STAGE/lib/"
   done
+  if [[ -d "$x/lib/ruby" ]]; then
+    mkdir -p "$STAGE/lib/ruby"
+    cp -a "$x"/lib/ruby/. "$STAGE/lib/ruby/"
+  fi
   rm -rf "$x"
+  if [[ -d "$STAGE/lib" ]]; then
+    local base
+    base=$(basename "$(ls -1 "$STAGE"/lib/libruby.so.*.*.* 2>/dev/null | head -1)")
+    if [[ -n "$base" && -e "$STAGE/lib/$base" ]]; then
+      ln -sfn "$base" "$STAGE/lib/libruby.so"
+      if [[ "$base" =~ ^libruby\.so\.([0-9]+\.[0-9]+)\. ]]; then
+        ln -sfn "$base" "$STAGE/lib/libruby.so.${BASH_REMATCH[1]}"
+      fi
+    fi
+  fi
 }
 
 if [[ "${SKIP_DEPS:-0}" != 1 ]]; then
   fetch_ruby
 fi
 
-# patches/<version>/*.patch on submodule (idempotent-ish)
 if [[ -d "$ROOT/nokogiri/.git" || -f "$ROOT/nokogiri/.git" ]]; then
   VER=$(ruby -e 'print File.read("'"$ROOT"'/nokogiri/lib/nokogiri/version/constant.rb")[/VERSION = "([^"]+)"/,1]' 2>/dev/null || true)
   if [[ -n "${VER:-}" && -d "$ROOT/patches/$VER" ]]; then
@@ -81,7 +100,7 @@ if [[ -d "$ROOT/nokogiri/.git" || -f "$ROOT/nokogiri/.git" ]]; then
 fi
 
 RUBY_HDR=$(find "$STAGE/include" -maxdepth 1 -type d -name 'ruby-*' | head -1)
-RUBY_API=$(basename "${RUBY_HDR:-ruby-3.4.0}" | sed 's/^ruby-//')
+RUBY_API=$(basename "${RUBY_HDR:-ruby-3.3.0}" | sed 's/^ruby-//')
 RUBY_MINOR=${RUBY_API%.*}
 RUBY_HDR="${RUBY_HDR:-$STAGE/include/ruby-$RUBY_API}"
 RUBY_ARCH_HDR="$RUBY_HDR/$PLAT"
@@ -93,3 +112,4 @@ export CPPFLAGS="-I$RUBY_HDR -I$RUBY_ARCH_HDR -fPIC"
 export CFLAGS="-fPIC -O2"
 export LDFLAGS="-L$STAGE/lib -Wl,--as-needed"
 export PKG_CONFIG_PATH=""
+echo "Android MRI headers: $RUBY_HDR (minor=$RUBY_MINOR)"

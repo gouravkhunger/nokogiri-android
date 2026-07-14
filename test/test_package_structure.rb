@@ -16,7 +16,7 @@ class TestPackage < Minitest::Test
       env = {
         "NOKOGIRI_ANDROID_ROOT" => ROOT,
         "GEM_PLATFORM" => "aarch64-linux-android",
-        "RUBY_MINOR" => "3.4",
+        "RUBY_MINOR" => "3.3",
       }
       assert system(env, RbConfig.ruby, "#{ROOT}/scripts/package.rb", so)
       gem = Dir.glob("#{ROOT}/pkg/nokogiri-*-aarch64-linux-android.gem").max_by { |p| File.mtime(p) }
