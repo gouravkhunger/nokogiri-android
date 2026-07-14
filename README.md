@@ -68,3 +68,9 @@ NOKOGIRI_ANDROID.txt
 ## License
 
 Nokogiri is MIT (see submodule `LICENSE.md`). This packaging glue is also MIT.
+
+## Why are Android gems ~300–500 KB (upstream platform gems ~6 MB)?
+
+Upstream fat gems (e.g. `arm64-darwin`) **statically link** libxml2, libxslt, zlib, and gumbo into **each** `lib/nokogiri/X.Y/nokogiri.{so,bundle}` and often ship **four** Ruby ABI builds (3.1–3.4) in one gem — multi‑MB native payloads.
+
+`nokogiri-android` builds are **dynamically linked** against the device bootstrap’s shared libs (`libxml2`, `libxslt`, `libruby`, …) and ship **one** Ruby minor (e.g. `lib/nokogiri/3.4/nokogiri.so` ~0.5 MB). Pure-Ruby files dominate the rest of the ~300 KB `.gem`. That is expected for JekyllEx/Termux where those `.so`s already exist under `$PREFIX/lib`.
