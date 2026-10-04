@@ -1,0 +1,11 @@
+/stage/
+/out/
+/pkg/
+*.gem
+*.o
+*.so
+mkmf.log
+nokogiri/ext/nokogiri/Makefile
+nokogiri/ext/nokogiri/tmp/
+nokogiri/ext/nokogiri/ports/
+.bundle/

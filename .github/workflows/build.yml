@@ -1,46 +1,61 @@
-name: Build bootstraps
+name: Build
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main, "feature/**", "fix/**"]
+  pull_request:
+    branches: [main]
 
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
+  package-test:
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3.4"
+      - name: Package structure test
+        run: ruby -Itest test/test_package_structure.rb
 
+  build:
+    needs: package-test
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        target_arch: [aarch64] # add arm, i686, x86_64
-
+        arch: [aarch64, arm, i686, x86_64]
     steps:
-      - name: Set up NDK
-        uses: nttld/setup-ndk@v1
+      - uses: nttld/setup-ndk@v1
+        id: ndk
         with:
-          ndk-version: r27c
-          local-cache: true
-
-      - name: Add NDK to PATH
-        run: echo "NDK=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
-
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+          ndk-version: r29
+          local-cache: false
+      - run: echo "NDK=${{ steps.ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v7
         with:
-          ruby-version: "3.4.1"
-          bundler-cache: true
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
+          submodules: recursive
+      - uses: ruby/setup-ruby@v1
         with:
-          submodules: true
-
-      - name: Setup build
-        run: |
-          mv nokogiri/* .
-          ./setup.sh {{ matrix.target_arch }}
-          bundle exec rake compile:nokogiri
-
-      - uses: actions/upload-artifact@v4
+          ruby-version: "3.3.4"
+      - run: gem install mini_portile2 --no-document
+      - run: ./scripts/build.sh ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v7
         with:
-          name: logs
-          path: tmp
+          name: nokogiri-${{ matrix.arch }}
+          path: |
+            pkg/*.gem
+            out/**/nokogiri.so
+          if-no-files-found: error
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: logs-${{ matrix.arch }}
+          path: nokogiri/ext/nokogiri/mkmf.log
+          if-no-files-found: ignore

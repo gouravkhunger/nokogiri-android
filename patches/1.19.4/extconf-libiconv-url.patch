@@ -1,0 +1,13 @@
+diff --git a/ext/nokogiri/extconf.rb b/ext/nokogiri/extconf.rb
+index 04ffc9fa..0c8712a4 100644
+--- a/ext/nokogiri/extconf.rb
++++ b/ext/nokogiri/extconf.rb
+@@ -832,7 +832,7 @@ else
+         cross_build_p,
+       ) do |recipe|
+         recipe.files = [{
+-          url: "https://ftpmirror.gnu.org/gnu/libiconv/#{recipe.name}-#{recipe.version}.tar.gz",
++          url: "https://ftp.gnu.org/gnu/libiconv/#{recipe.name}-#{recipe.version}.tar.gz",
+           sha256: dependencies["libiconv"]["sha256"],
+         }]
+ 

@@ -1,0 +1,74 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "fileutils"
+require "rubygems"
+require "rubygems/package"
+require "tmpdir"
+
+def need(k)
+  ENV.fetch(k) { abort "missing #{k}" }
+end
+
+root = need("NOKOGIRI_ANDROID_ROOT")
+plat = need("GEM_PLATFORM")
+minor = need("RUBY_MINOR")
+so = ARGV[0] || "#{root}/out/#{plat}/nokogiri.so"
+abort "missing #{so}" unless File.file?(so)
+src = File.directory?("#{root}/nokogiri/lib") ? "#{root}/nokogiri" : root
+ver = File.read("#{src}/lib/nokogiri/version/constant.rb")[/VERSION = "([^"]+)"/, 1] || abort("version")
+
+files = Dir.chdir(src) do
+  Dir.glob("lib/**/*").reject { |p| File.directory?("#{src}/#{p}") || p.include?("/jruby/") || p.end_with?(".jar") }
+end
+
+pkg = "#{root}/pkg"
+FileUtils.mkdir_p(pkg)
+gem_name = "nokogiri"
+gem_path = "#{pkg}/#{gem_name}-#{ver}-#{plat}.gem"
+
+Dir.mktmpdir("noko-") do |stage|
+  files.each do |rel|
+    FileUtils.mkdir_p(File.dirname("#{stage}/#{rel}"))
+    FileUtils.cp("#{src}/#{rel}", "#{stage}/#{rel}")
+  end
+  so_rel = "lib/nokogiri/#{minor}/nokogiri.so"
+  FileUtils.mkdir_p(File.dirname("#{stage}/#{so_rel}"))
+  FileUtils.cp(so, "#{stage}/#{so_rel}")
+  files << so_rel
+  %w[LICENSE.md LICENSE-DEPENDENCIES.md].each do |d|
+    next unless File.file?("#{src}/#{d}")
+    FileUtils.cp("#{src}/#{d}", "#{stage}/#{d}")
+    files << d
+  end
+  files << "NOKOGIRI_ANDROID.txt"
+  files = files.uniq.sort
+  File.write("#{stage}/NOKOGIRI_ANDROID.txt", "#{gem_name} #{ver} #{plat}\n")
+
+  spec = Gem::Specification.new do |s|
+    s.name = gem_name
+    s.version = ver
+    s.platform = Gem::Platform.new(plat)
+    s.authors = ["Gourav Khunger"]
+    s.email = ["gouravkhunger18@gmail.com"]
+    s.homepage = "https://github.com/gouravkhunger/nokogiri-android"
+    s.license = "MIT"
+    s.summary = "Prebuilt Nokogiri for Android (#{plat})"
+    s.description = "Prebuilt Nokogiri platform gem for Android ABIs used by JekyllEx. " \
+                    "Static libxml2/libxslt/zlib/libiconv/gumbo. MRI #{minor}. " \
+                    "Install with gem install --local. require \"nokogiri\" loads this copy."
+    s.required_ruby_version = ">= 3.1.0"
+    s.files = files
+    s.require_paths = ["lib"]
+    s.extensions = []
+    s.metadata = {
+      "homepage_uri" => "https://github.com/gouravkhunger/nokogiri-android",
+      "source_code_uri" => "https://github.com/gouravkhunger/nokogiri-android",
+      "bug_tracker_uri" => "https://github.com/gouravkhunger/nokogiri-android/issues",
+      "android_abi_platform" => plat,
+    }
+    s.add_runtime_dependency "racc", "~> 1.4"
+  end
+  Dir.chdir(stage) { FileUtils.mv(Gem::Package.build(spec), gem_path) }
+  puts "OK #{gem_path}"
+end
