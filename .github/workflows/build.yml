@@ -3,12 +3,29 @@ name: Build
 on:
   workflow_dispatch:
   push:
-    branches: ["feature/**", "fix-ci"]
+    branches: [main, "feature/**", "fix/**"]
   pull_request:
     branches: [main]
 
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  package-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3.4"
+      - name: Package structure test
+        run: ruby -Itest test/test_package_structure.rb
+
   build:
+    needs: package-test
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -18,7 +35,7 @@ jobs:
       - uses: nttld/setup-ndk@v1
         id: ndk
         with:
-          ndk-version: r27c
+          ndk-version: r29
           local-cache: false
       - run: echo "NDK=${{ steps.ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
       - uses: actions/checkout@v7
@@ -35,6 +52,7 @@ jobs:
           path: |
             pkg/*.gem
             out/**/nokogiri.so
+          if-no-files-found: error
       - if: failure()
         uses: actions/upload-artifact@v7
         with:

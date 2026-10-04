@@ -93,6 +93,13 @@ File.write(preload, <<~RB)
   %w[LDFLAGS DLDFLAGS].each do |k|
     RbConfig::CONFIG[k] = RbConfig::MAKEFILE_CONFIG[k] = "-L\#{libdir} \#{RbConfig::CONFIG[k]}".strip
   end
+  extra = %w[-Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384 -Wl,--exclude-libs,ALL]
+  %w[LDFLAGS DLDFLAGS].each do |k|
+    cur = RbConfig::CONFIG[k].to_s
+    add = extra.reject { |f| cur.include?(f) }
+    next if add.empty?
+    RbConfig::CONFIG[k] = RbConfig::MAKEFILE_CONFIG[k] = (cur + " " + add.join(" ")).strip
+  end
   ENV["CC"] = #{cc.inspect}
   ENV["CXX"] = #{cxx.inspect}
   ENV["AR"] = #{ar.inspect}
@@ -151,5 +158,12 @@ if system("which", readelf.split.first, out: File::NULL, err: File::NULL) || Fil
   puts needed.lines.grep(/NEEDED/).join
   bad = needed.lines.grep(/NEEDED/).grep(/libxml2|libxslt|libexslt|libz\.|libiconv/)
   abort "expected static xml/xslt/z, still dynamic: #{bad}" if bad.any?
+  syms = `#{readelf} --dyn-syms #{dest} 2>/dev/null`
+  abort "missing Init_nokogiri" unless syms.include?("Init_nokogiri")
+  leaked = syms.lines.grep(/\bGLOBAL\b/).grep(/\b(?:xmlParseChunk|xsltParseStylesheetDoc|iconv_open)\b/)
+  abort "static lib symbols exported" unless leaked.empty?
+  loads = `#{readelf} -l #{dest} 2>/dev/null`
+  narrow = loads.lines.grep(/^\s*LOAD\b/).select { |l| l.split.last.to_i(16) < 0x4000 }
+  abort "LOAD align < 16KB" unless narrow.empty?
 end
 puts "OK #{dest} size=#{File.size(dest)}"

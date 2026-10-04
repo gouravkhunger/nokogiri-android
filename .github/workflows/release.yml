@@ -1,0 +1,185 @@
+# Tag → build 4 ABI gems → GitHub Release → gem push rubygems.org
+#
+# One-time setup:
+#   Repo → Settings → Secrets and variables → Actions
+#     RUBYGEMS_API_KEY = same push key used for jekyll-auto-authors etc.
+#
+# Release:
+#   git tag -a v1.18.8 -m "1.18.8"
+#   git push origin v1.18.8
+name: Release
+
+on:
+  push:
+    tags: ["v*", "[0-9]*.[0-9]*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to rebuild/re-release (required for dispatch)"
+        required: true
+        type: string
+      publish_rubygems:
+        description: "Also gem push to rubygems.org"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}-${{ inputs.tag || github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  package-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3.4"
+      - run: ruby -Itest test/test_package_structure.rb
+
+  build:
+    needs: package-test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [aarch64, arm, i686, x86_64]
+    steps:
+      - uses: nttld/setup-ndk@v1
+        id: ndk
+        with:
+          ndk-version: r29
+          local-cache: false
+      - run: echo "NDK=${{ steps.ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3.4"
+      - run: gem install mini_portile2 --no-document
+      - run: ./scripts/build.sh ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: gem-${{ matrix.arch }}
+          path: pkg/*.gem
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: gem-*
+          path: gems
+          merge-multiple: true
+      - name: List gems
+        run: |
+          ls -la gems/
+          test "$(find gems -name '*.gem' | wc -l)" -eq 8
+      - name: Resolve tag
+        id: meta
+        run: |
+          set -euo pipefail
+          if [[ -n "${{ inputs.tag }}" ]]; then
+            TAG="${{ inputs.tag }}"
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            echo "No tag; refusing release" >&2
+            exit 1
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.tag }}
+          draft: false
+          generate_release_notes: true
+          files: gems/*.gem
+          fail_on_unmatched_files: true
+          body: |
+            Prebuilt **nokogiri-android** platform gems (Ruby 3.3 / JekyllEx ABI).
+
+            ## Install
+
+            ```bash
+            gem install --local nokogiri-VERSION-aarch64-linux-android.gem --no-document
+            ruby -e 'require "nokogiri"; p Nokogiri::VERSION'
+            ```
+
+            Platforms: `aarch64-linux-android`, `arm-linux-androideabi`, `i686-linux-android`, `x86_64-linux-android`.
+
+            Published to RubyGems by this same workflow when `RUBYGEMS_API_KEY` is set.
+
+  publish-rubygems:
+    needs: [build, release]
+    # Tag push always publishes; dispatch respects the checkbox (default true).
+    if: >-
+      github.event_name == 'push'
+      || (github.event_name == 'workflow_dispatch' && inputs.publish_rubygems)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3.4"
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: gem-*
+          path: gems
+          merge-multiple: true
+      - name: List + identify gems
+        run: |
+          set -euo pipefail
+          ls -la gems/
+          test "$(find gems -name '*.gem' | wc -l)" -eq 8
+          for g in gems/*.gem; do
+            ruby -e 'require "rubygems/package"; s=Gem::Package.new(ARGV[0]).spec; puts "#{s.name} #{s.version} #{s.platform}"' "$g"
+          done
+      - name: gem push to rubygems.org
+        env:
+          RUBYGEMS_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${RUBYGEMS_API_KEY:-}" ]]; then
+            echo "::error::Missing secret RUBYGEMS_API_KEY. Add it under repo Settings → Secrets → Actions (same key as jekyll-* gem push)."
+            exit 1
+          fi
+          mkdir -p ~/.gem
+          printf '%s\n' "---" ":rubygems_api_key: ${RUBYGEMS_API_KEY}" > ~/.gem/credentials
+          chmod 0600 ~/.gem/credentials
+          failed=0
+          for g in gems/*.gem; do
+            name=$(ruby -e 'require "rubygems/package"; print Gem::Package.new(ARGV[0]).spec.name' "$g")
+            if [[ "$name" != "nokogiri-android" ]]; then
+              echo "skip rubygems push for ${g} (install this one locally; name nokogiri is not ours)"
+              continue
+            fi
+            echo "pushing ${g}"
+            if out=$(gem push "${g}" 2>&1); then
+              echo "${out}"
+            else
+              echo "${out}"
+              if echo "${out}" | grep -qiE 'already been|Repushing of gem versions|has already been pushed'; then
+                echo "already on rubygems.org — skip ${g}"
+              else
+                echo "::error::gem push failed for ${g}"
+                failed=1
+              fi
+            fi
+          done
+          exit "${failed}"

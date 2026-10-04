@@ -10,5 +10,19 @@ source "$ROOT/scripts/stage.sh" "$ARCH"
 ruby -e 'require "mini_portile2"' 2>/dev/null || gem install mini_portile2 --no-document
 ruby "$ROOT/scripts/compile.rb"
 ruby "$ROOT/scripts/package.rb"
-ruby "$ROOT/scripts/verify.rb" "$ROOT"/pkg/nokogiri-*-"${GEM_PLATFORM}".gem
+shopt -s nullglob
+if [[ -n "${GEM_NAME:-}" ]]; then
+  gems=( "$ROOT"/pkg/"${GEM_NAME}"-*-"${GEM_PLATFORM}".gem )
+else
+  gems=( "$ROOT"/pkg/*-"${GEM_PLATFORM}".gem )
+fi
+[[ ${#gems[@]} -gt 0 ]] || { echo "no gem" >&2; exit 1; }
+for gem in "${gems[@]}"; do
+  base=$(basename "$gem")
+  if [[ "$base" == nokogiri-android-* ]]; then
+    GEM_NAME=nokogiri-android ruby "$ROOT/scripts/verify.rb" "$gem"
+  else
+    GEM_NAME=nokogiri ruby "$ROOT/scripts/verify.rb" "$gem"
+  fi
+done
 ls -la "$ROOT/out/$GEM_PLATFORM" "$ROOT/pkg"

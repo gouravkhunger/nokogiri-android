@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stage Android MRI 3.3.4 (headers + libruby) from JekyllEx bootstrap.
+# Stage Android MRI 3.3.4 (headers + libruby) from the JekyllEx bootstrap.
 # Usage: source scripts/stage.sh <aarch64|arm|i686|x86_64>
 set -euo pipefail
 
@@ -10,8 +10,8 @@ case "$ARCH" in aarch64|arm|i686|x86_64) ;; *) echo "bad arch: $ARCH" >&2; exit 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STAGE="${NOKOGIRI_ANDROID_STAGE:-$ROOT/stage/$ARCH}"
 API="${ANDROID_API:-24}"
-# JekyllEx bootstrap (Ruby 3.3.4). Override JEKYLLEX_RUBY_URL_BASE / RUBY_ZIP.
-BOOT_VER="${JEKYLLEX_BOOTSTRAP_VERSION:-v0.1.4}"
+# JekyllEx bootstrap (Ruby 3.3.4, NDK r29, 16 KB ELF). Override JEKYLLEX_RUBY_URL_BASE / RUBY_ZIP.
+BOOT_VER="${JEKYLLEX_BOOTSTRAP_VERSION:-v0.1.5}"
 BOOT_BASE="${JEKYLLEX_RUBY_URL_BASE:-https://github.com/jekyllex/ruby-android/releases/download/${BOOT_VER}}"
 
 : "${NDK:=${ANDROID_NDK_HOME:-${ANDROID_NDK_ROOT:-}}}"
@@ -55,7 +55,7 @@ source "$ROOT/scripts/toolchain.sh"
 fetch_ruby() {
   local zip="${RUBY_ZIP:-ruby-${ZIP_ARCH}.zip}"
   local url="${RUBY_URL:-$BOOT_BASE/$zip}"
-  local zpath="$STAGE/$zip"
+  local zpath="$STAGE/${BOOT_VER}-$zip"
   [[ -f "$zpath" ]] || curl -fsSL -L -o "$zpath" "$url"
   local x="$STAGE/.x"
   rm -rf "$x" && mkdir -p "$x"
@@ -110,6 +110,6 @@ fi
 export RUBY_API RUBY_MINOR RUBY_HDR RUBY_ARCH_HDR
 export CPPFLAGS="-I$RUBY_HDR -I$RUBY_ARCH_HDR -fPIC"
 export CFLAGS="-fPIC -O2"
-export LDFLAGS="-L$STAGE/lib -Wl,--as-needed"
+export LDFLAGS="-L$STAGE/lib -Wl,--as-needed -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384 -Wl,--exclude-libs,ALL"
 export PKG_CONFIG_PATH=""
 echo "Android MRI headers: $RUBY_HDR (minor=$RUBY_MINOR)"
