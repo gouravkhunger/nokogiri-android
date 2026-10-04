@@ -94,7 +94,7 @@ if [[ -d "$ROOT/nokogiri/.git" || -f "$ROOT/nokogiri/.git" ]]; then
     (cd "$ROOT/nokogiri" && git checkout -- ext/nokogiri/extconf.rb 2>/dev/null || true)
     for p in "$ROOT/patches/$VER"/*.patch; do
       [[ -f "$p" ]] || continue
-      (cd "$ROOT/nokogiri" && git apply "$p") || true
+      (cd "$ROOT/nokogiri" && git apply "$p")
     done
   fi
 fi

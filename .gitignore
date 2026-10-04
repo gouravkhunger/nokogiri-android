@@ -5,7 +5,6 @@
 *.o
 *.so
 mkmf.log
-scripts/.preload.rb
 nokogiri/ext/nokogiri/Makefile
 nokogiri/ext/nokogiri/tmp/
 nokogiri/ext/nokogiri/ports/
