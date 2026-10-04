@@ -24,9 +24,8 @@ end
 
 pkg = "#{root}/pkg"
 FileUtils.mkdir_p(pkg)
-# nokogiri: upgrades the bootstrap gem in place (github-pages allows < 2).
-# nokogiri-android: same files, ownable name for rubygems.org.
-gem_names = ENV.key?("GEM_NAME") ? [ENV.fetch("GEM_NAME")] : %w[nokogiri nokogiri-android]
+gem_name = "nokogiri"
+gem_path = "#{pkg}/#{gem_name}-#{ver}-#{plat}.gem"
 
 Dir.mktmpdir("noko-") do |stage|
   files.each do |rel|
@@ -44,37 +43,32 @@ Dir.mktmpdir("noko-") do |stage|
   end
   files << "NOKOGIRI_ANDROID.txt"
   files = files.uniq.sort
+  File.write("#{stage}/NOKOGIRI_ANDROID.txt", "#{gem_name} #{ver} #{plat}\n")
 
-  gem_names.each do |gem_name|
-    gem_path = "#{pkg}/#{gem_name}-#{ver}-#{plat}.gem"
-    File.write("#{stage}/NOKOGIRI_ANDROID.txt", "#{gem_name} #{ver} #{plat}\n")
-    spec = Gem::Specification.new do |s|
-      s.name = gem_name
-      s.version = ver
-      s.platform = Gem::Platform.new(plat)
-      s.authors = ["Gourav Khunger"]
-      s.email = ["gouravkhunger18@gmail.com"]
-      s.homepage = "https://github.com/gouravkhunger/nokogiri-android"
-      s.license = "MIT"
-      s.summary = "Prebuilt Nokogiri for Android (#{plat})"
-      s.description = "Prebuilt Nokogiri platform gem for Android ABIs used by JekyllEx. " \
-                      "Static libxml2/libxslt/zlib/libiconv/gumbo. MRI #{minor}. " \
-                      "Install provides require \"nokogiri\"."
-      s.required_ruby_version = ">= 3.1.0"
-      s.files = files
-      s.require_paths = ["lib"]
-      s.extensions = []
-      s.metadata = {
-        "homepage_uri" => "https://github.com/gouravkhunger/nokogiri-android",
-        "source_code_uri" => "https://github.com/gouravkhunger/nokogiri-android",
-        "bug_tracker_uri" => "https://github.com/gouravkhunger/nokogiri-android/issues",
-        "rubygems_mfa_required" => "true",
-        "nokogiri_android" => "true",
-        "android_abi_platform" => plat,
-      }
-      s.add_runtime_dependency "racc", "~> 1.4"
-    end
-    Dir.chdir(stage) { FileUtils.mv(Gem::Package.build(spec), gem_path) }
-    puts "OK #{gem_path}"
+  spec = Gem::Specification.new do |s|
+    s.name = gem_name
+    s.version = ver
+    s.platform = Gem::Platform.new(plat)
+    s.authors = ["Gourav Khunger"]
+    s.email = ["gouravkhunger18@gmail.com"]
+    s.homepage = "https://github.com/gouravkhunger/nokogiri-android"
+    s.license = "MIT"
+    s.summary = "Prebuilt Nokogiri for Android (#{plat})"
+    s.description = "Prebuilt Nokogiri platform gem for Android ABIs used by JekyllEx. " \
+                    "Static libxml2/libxslt/zlib/libiconv/gumbo. MRI #{minor}. " \
+                    "Install with gem install --local. require \"nokogiri\" loads this copy."
+    s.required_ruby_version = ">= 3.1.0"
+    s.files = files
+    s.require_paths = ["lib"]
+    s.extensions = []
+    s.metadata = {
+      "homepage_uri" => "https://github.com/gouravkhunger/nokogiri-android",
+      "source_code_uri" => "https://github.com/gouravkhunger/nokogiri-android",
+      "bug_tracker_uri" => "https://github.com/gouravkhunger/nokogiri-android/issues",
+      "android_abi_platform" => plat,
+    }
+    s.add_runtime_dependency "racc", "~> 1.4"
   end
+  Dir.chdir(stage) { FileUtils.mv(Gem::Package.build(spec), gem_path) }
+  puts "OK #{gem_path}"
 end

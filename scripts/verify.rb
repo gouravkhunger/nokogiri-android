@@ -7,8 +7,7 @@ require "tmpdir"
 gem = ARGV[0] or abort "usage: verify.rb <gem>"
 pkg = Gem::Package.new(gem)
 s = pkg.spec
-expected = ENV.fetch("GEM_NAME", "nokogiri-android")
-abort "name=#{s.name} expected=#{expected}" unless s.name == expected
+abort "name=#{s.name}" unless s.name == "nokogiri"
 abort "extensions=#{s.extensions}" unless s.extensions.empty?
 abort "ruby platform" if s.platform == Gem::Platform::RUBY
 sos = s.files.grep(%r{\Alib/nokogiri/\d+\.\d+/nokogiri\.so\z})

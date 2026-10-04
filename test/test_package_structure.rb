@@ -7,7 +7,6 @@ require "tmpdir"
 require "rbconfig"
 
 ROOT = File.expand_path("..", __dir__)
-GEM_NAME = ENV.fetch("GEM_NAME", "nokogiri-android")
 
 class TestPackage < Minitest::Test
   def test_package_and_verify
@@ -18,11 +17,10 @@ class TestPackage < Minitest::Test
         "NOKOGIRI_ANDROID_ROOT" => ROOT,
         "GEM_PLATFORM" => "aarch64-linux-android",
         "RUBY_MINOR" => "3.3",
-        "GEM_NAME" => GEM_NAME,
       }
       assert system(env, RbConfig.ruby, "#{ROOT}/scripts/package.rb", so)
-      gem = Dir.glob("#{ROOT}/pkg/#{GEM_NAME}-*-aarch64-linux-android.gem").max_by { |p| File.mtime(p) }
-      assert gem, "expected #{GEM_NAME}-*-aarch64-linux-android.gem"
+      gem = Dir.glob("#{ROOT}/pkg/nokogiri-[0-9]*-aarch64-linux-android.gem").max_by { |p| File.mtime(p) }
+      assert gem, "expected nokogiri-*-aarch64-linux-android.gem"
       assert system(env, RbConfig.ruby, "#{ROOT}/scripts/verify.rb", gem)
     end
   end

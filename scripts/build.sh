@@ -11,18 +11,9 @@ ruby -e 'require "mini_portile2"' 2>/dev/null || gem install mini_portile2 --no-
 ruby "$ROOT/scripts/compile.rb"
 ruby "$ROOT/scripts/package.rb"
 shopt -s nullglob
-if [[ -n "${GEM_NAME:-}" ]]; then
-  gems=( "$ROOT"/pkg/"${GEM_NAME}"-*-"${GEM_PLATFORM}".gem )
-else
-  gems=( "$ROOT"/pkg/*-"${GEM_PLATFORM}".gem )
-fi
+gems=( "$ROOT"/pkg/nokogiri-[0-9]*-"${GEM_PLATFORM}".gem )
 [[ ${#gems[@]} -gt 0 ]] || { echo "no gem" >&2; exit 1; }
 for gem in "${gems[@]}"; do
-  base=$(basename "$gem")
-  if [[ "$base" == nokogiri-android-* ]]; then
-    GEM_NAME=nokogiri-android ruby "$ROOT/scripts/verify.rb" "$gem"
-  else
-    GEM_NAME=nokogiri ruby "$ROOT/scripts/verify.rb" "$gem"
-  fi
+  ruby "$ROOT/scripts/verify.rb" "$gem"
 done
 ls -la "$ROOT/out/$GEM_PLATFORM" "$ROOT/pkg"
