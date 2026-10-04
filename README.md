@@ -57,13 +57,13 @@ Fully automated. **Tag push** runs: package test → 4-ABI build → GitHub Rele
 
 ```bash
 # version tracks upstream Nokogiri pin in the submodule
-git tag -a v1.18.8 -m "1.18.8"
-git push origin v1.18.8
+git tag -a v1.19.4 -m "1.19.4"
+git push origin v1.19.4
 ```
 
 Watch **Actions → Release**. On success:
 
-- GitHub Release `v1.18.8` with 4 `.gem` assets
+- GitHub Release `v1.19.4` with 4 `.gem` assets
 - https://rubygems.org/gems/nokogiri-android has those platform versions
 
 Re-run / rebuild a tag: Actions → **Release** → Run workflow → enter tag (optional uncheck “Also gem push” to only refresh GitHub Release).

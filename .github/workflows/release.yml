@@ -5,8 +5,8 @@
 #     RUBYGEMS_API_KEY = same push key used for jekyll-auto-authors etc.
 #
 # Release:
-#   git tag -a v1.18.8 -m "1.18.8"
-#   git push origin v1.18.8
+#   git tag -a v1.19.4 -m "1.19.4"
+#   git push origin v1.19.4
 name: Release
 
 on:
